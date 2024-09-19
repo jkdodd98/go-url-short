@@ -14,31 +14,13 @@ import (
 // http.Handler will be called instead.
 func MapHandler(pathToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-        if dest, ok := pathToUrls[r.URL.Path]; ok {
-            http.Redirect(w, r, dest, http.StatusFound)
-            return
-        }
-        fallback.ServeHTTP(w, r)
+        path := r.URL.Path
+		if dest, ok := pathToUrls[path]; ok {
+			http.Redirect(w, r, dest, http.StatusFound)
+			return
+		}
+		fallback.ServeHTTP(w, r)
     }
-}
-
-func buildMap(parsedYaml []YAMLStruct) map[string]string {
-	pathToUrls := make(map[string]string)
-	for _, entry := range parsedYaml {
-		pathToUrls[entry.Path] = entry.Url
-	}
-	return pathToUrls
-}
-
-type YAMLStruct struct {
-	Path string `yaml:"path"`
-	Url string `yaml:"url"`
-}
-
-func parseYAML(yml []byte) ([]YAMLStruct, error) {
-	var parsedYaml []YAMLStruct
-	err := yaml.Unmarshal(yml, &parsedYaml)
-	return parsedYaml, err
 }
 
 // YAMLHandler will parse the provided YAML and then return
@@ -57,11 +39,33 @@ func parseYAML(yml []byte) ([]YAMLStruct, error) {
 //
 // See MapHandler to create a similar http.HandlerFunc via
 // a mapping of paths to urls.
-func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
-	parsedYaml, err := parseYAML(yml)
+func YAMLHandler(yamlBytes []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	pathUrls, err := parseYaml(yamlBytes)
 	if err != nil {
 		return nil, err
 	}
-	pathMap := buildMap(parsedYaml)
-	return MapHandler(pathMap, fallback), nil
+	pathsToUrls := buildMap(pathUrls)
+	return MapHandler(pathsToUrls, fallback), nil
+}
+
+func parseYaml(data []byte) ([]pathUrl, error) {
+	var pathUrls []pathUrl
+	err := yaml.Unmarshal(data, &pathUrls)
+	if err != nil {
+		return nil, err
+	}
+	return pathUrls, err
+}
+
+func buildMap(pathUrls []pathUrl) map[string]string {
+	pathsToUrls := make(map[string]string)
+	for _, pu := range pathUrls {
+		pathsToUrls[pu.Path] = pu.URL
+	}
+	return pathsToUrls
+}
+
+type pathUrl struct {
+	Path string `yaml:"path"`
+	URL  string `yaml:"url"`
 }
